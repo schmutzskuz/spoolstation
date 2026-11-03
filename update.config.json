@@ -1,0 +1,5 @@
+{
+  "_comment": "Einzige Stelle fuer die Update-Quelle. owner/repo = oeffentliches GitHub-Repository mit den Releases (App-Installer + firmware-manifest.json + ota.bin als Assets). Beide Felder leer lassen => Updates sind komplett deaktiviert, die App zeigt dann unauffaellig 'Update-Quelle nicht eingerichtet' und versucht nichts.",
+  "owner": "schmutzskuz",
+  "repo": "spoolstation"
+}

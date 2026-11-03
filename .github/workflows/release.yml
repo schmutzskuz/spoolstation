@@ -1,0 +1,164 @@
+name: Release
+
+# Wird durch einen Tag v* ausgeloest (z. B. v1.0.0).
+on:
+  push:
+    tags:
+      - "v*"
+
+# Direkt im Workflow, damit in den Repo-Einstellungen nichts umgestellt werden muss.
+permissions:
+  contents: write
+
+jobs:
+  firmware:
+    name: Build firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+      - name: Build firmware
+        working-directory: firmware
+        run: pio run
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            firmware/dist/factory.bin
+            firmware/dist/ota.bin
+            firmware/dist/firmware-manifest.json
+          if-no-files-found: error
+
+  windows:
+    name: Build Windows installer
+    needs: firmware
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Download firmware
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          # factory.bin + ota.bin + Manifest werden per extraResources in den Installer gepackt.
+          path: desktop/resources/firmware
+      - name: Install
+        working-directory: desktop
+        run: npm ci
+      - name: Build renderer/main
+        working-directory: desktop
+        run: npm run build
+      - name: Package installer (ohne Auto-Upload; Release kommt im naechsten Job)
+        working-directory: desktop
+        run: npx electron-builder --win --config electron-builder.yml --publish never
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # --- Code-Signing (spaeter, z. B. SignPath) – aktuell deaktiviert ---
+          # SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.exe.blockmap
+            desktop/release/latest.yml
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: [firmware, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download firmware
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: dist/firmware
+      - name: Download installer
+        uses: actions/download-artifact@v4
+        with:
+          name: windows
+          path: dist/windows
+      - name: Release-Notes aus CHANGELOG.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## " ver "( |$)" {flag=1; next}
+            flag && /^## / {flag=0}
+            flag {print}
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then echo "SpoolStation $VERSION" > RELEASE_NOTES.md; fi
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_NOTES.md
+          files: |
+            dist/windows/*.exe
+            dist/windows/*.exe.blockmap
+            dist/windows/latest.yml
+            dist/firmware/factory.bin
+            dist/firmware/ota.bin
+            dist/firmware/firmware-manifest.json
+
+  # --- Optional: macOS- und Linux-Builds (spaeter aktivieren) ---
+  # macos:
+  #   name: Build macOS app
+  #   needs: firmware
+  #   runs-on: macos-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 20
+  #         cache: npm
+  #         cache-dependency-path: desktop/package-lock.json
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: firmware
+  #         path: desktop/resources/firmware
+  #     - working-directory: desktop
+  #       run: npm ci && npm run build && npx electron-builder --mac --publish never
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: macos
+  #         path: desktop/release/*.dmg
+  #
+  # linux:
+  #   name: Build Linux app
+  #   needs: firmware
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 20
+  #         cache: npm
+  #         cache-dependency-path: desktop/package-lock.json
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: firmware
+  #         path: desktop/resources/firmware
+  #     - working-directory: desktop
+  #       run: npm ci && npm run build && npx electron-builder --linux --publish never
+  #     - uses: actions/upload-artifact@v4
+  #       with:
+  #         name: linux
+  #         path: desktop/release/*.AppImage

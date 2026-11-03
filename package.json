@@ -1,0 +1,9 @@
+{
+  "name": "spoolstation",
+  "private": true,
+  "version": "1.0.0",
+  "description": "SpoolStation – gemeinsame Versionsquelle fuer App (desktop/) und Firmware (firmware/).",
+  "scripts": {
+    "version:bump": "node scripts/version-bump.mjs"
+  }
+}

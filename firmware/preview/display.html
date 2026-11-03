@@ -1,0 +1,221 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>SpoolStation Display Preview</title>
+<style>
+  html, body { margin: 0; background: #111; }
+  #wrap { width: 240px; height: 240px; }
+  canvas { width: 240px; height: 240px; border-radius: 50%; display: block; }
+</style>
+<div id="wrap"><canvas id="c" width="240" height="240"></canvas></div>
+<script>
+// Spiegelt die Firmware-Zeichnung (ui.cpp) fuer eine Design-Vorschau am PC.
+// Gleiche Geometrie/Farben wie das Geraet (240x240, rund). Rein zur Begutachtung.
+const C = {
+  BG: '#25272A', BG2: '#1C1D20', BRASS: '#C8A04A', SEG_OFF: '#3A3D42',
+  TEXT: '#ECECEE', DIM: '#9A9CA2', GREEN: '#4CB76A', RED: '#E05A5A', OUTLINE: '#6A6E76'
+}
+const CX = 120, CY = 120
+const ctx = document.getElementById('c').getContext('2d')
+
+function hexToRgb(h){ h=h.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)] }
+function luma(h){ const [r,g,b]=hexToRgb(h); return (r*77+g*150+b*29)>>8 }
+function isDark(h){ return luma(h)<60 }
+function mix(a,b,t){ const A=hexToRgb(a),B=hexToRgb(b); const c=A.map((v,i)=>Math.round(v+(B[i]-v)*t)); return `rgb(${c[0]},${c[1]},${c[2]})` }
+
+// Ringsegment / Annulus zwischen zwei Radien, Winkel in Grad (0=rechts, 90=unten).
+function arcFill(cx,cy,rIn,rOut,a0,a1,color){
+  const r0=a0*Math.PI/180, r1=a1*Math.PI/180
+  ctx.beginPath()
+  ctx.arc(cx,cy,rOut,r0,r1)
+  ctx.arc(cx,cy,rIn,r1,r0,true)
+  ctx.closePath(); ctx.fillStyle=color; ctx.fill()
+}
+function arcStroke(cx,cy,r,a0,a1,color,w=1){
+  ctx.beginPath(); ctx.arc(cx,cy,r,a0*Math.PI/180,a1*Math.PI/180)
+  ctx.strokeStyle=color; ctx.lineWidth=w; ctx.stroke()
+}
+function text(s,x,y,color,px,weight='400',align='center'){
+  ctx.fillStyle=color; ctx.textAlign=align; ctx.textBaseline='middle'
+  ctx.font=`${weight} ${px}px "DejaVu Sans","Segoe UI",sans-serif`
+  ctx.fillText(s,x,y)
+}
+
+const SLOT_ANGLE=[270,0,90,180]
+function polar(a,r){ const t=a*Math.PI/180; return [CX+Math.cos(t)*r, CY+Math.sin(t)*r] }
+
+function drawSpoolSide(cx,cy,w,h,col,fill,present){
+  const hw=w/2, hh=h/2
+  const flange = present ? mix(col,C.BG,0.55) : C.SEG_OFF
+  const r=2
+  function rrect(x,y,ww,hhh,c){ ctx.fillStyle=c; ctx.beginPath(); ctx.roundRect(x,y,ww,hhh,r); ctx.fill() }
+  rrect(cx-hw,cy-hh,6,h,flange)
+  rrect(cx+hw-6,cy-hh,6,h,flange)
+  const coreX=cx-hw+7, coreW=w-14
+  ctx.fillStyle=C.BG2; ctx.fillRect(coreX,cy-hh+3,coreW,h-6)
+  if(present && fill>0.01){
+    const fh=(h-6)*(fill<0.08?0.08:Math.min(fill,1))
+    ctx.fillStyle=col; ctx.fillRect(coreX,cy+hh-3-fh,coreW,fh)
+    if(isDark(col)){ ctx.strokeStyle=C.OUTLINE; ctx.lineWidth=1; ctx.strokeRect(coreX+0.5,cy+hh-3-fh+0.5,coreW-1,fh-1) }
+  }
+  ctx.fillStyle=C.BG2; ctx.beginPath(); ctx.arc(cx,cy,3,0,7); ctx.fill()
+  ctx.strokeStyle=C.DIM; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(cx,cy,3,0,7); ctx.stroke()
+}
+
+function drawSlotRing(slots, selAnim){
+  for(let i=0;i<4;i++){
+    const a=SLOT_ANGLE[i]
+    let dist=Math.abs(i-selAnim); if(dist>2) dist=4-dist
+    const selAmt=1-Math.min(dist,1)
+    const rIn=96-selAmt*10, rOut=112+selAmt*3
+    const s=slots[i]
+    const present = s && (s.color || s.present)
+    const fil = present && s.color ? s.color : C.SEG_OFF
+    if(!present){ arcFill(CX,CY,104,110,a-34,a+34,C.SEG_OFF) }
+    else {
+      arcFill(CX,CY,rIn,rOut,a-36,a+36,fil)
+      if(isDark(fil)){ arcStroke(CX,CY,rOut,a-36,a+36,C.OUTLINE,1); arcStroke(CX,CY,rIn,a-36,a+36,C.OUTLINE,1) }
+    }
+    const [lx,ly]=polar(a,104)
+    const txtCol = present ? (isDark(fil)?C.TEXT:C.BG) : C.DIM
+    text(String(i+1),lx,ly,txtCol,16,'600')
+  }
+  // Messing-Markierung am gewaehlten Segment (interpoliert)
+  const i0=Math.floor(selAnim)&3, i1=(i0+1)&3, f=selAnim-Math.floor(selAnim)
+  let a0=SLOT_ANGLE[i0], a1=SLOT_ANGLE[i1]; let da=a1-a0; if(da>180)da-=360; if(da<-180)da+=360
+  const selA=a0+da*f
+  arcFill(CX,CY,115,119,selA-15,selA+15,C.BRASS)
+}
+
+function drawStatusGlyph(problem){
+  if(!problem) return
+  const gy=200
+  if(problem==='wifi'){
+    for(let i=1;i<=3;i++) arcStroke(CX,gy+4,i*3,215,325,C.DIM,1)
+    ctx.fillStyle=C.DIM; ctx.beginPath(); ctx.arc(CX,gy+4,2,0,7); ctx.fill()
+    ctx.strokeStyle=C.RED; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(CX-8,gy-6); ctx.lineTo(CX+8,gy+8); ctx.stroke()
+  } else {
+    ctx.strokeStyle=C.RED; ctx.lineWidth=1
+    ctx.strokeRect(CX-8,gy-3,16,10); ctx.beginPath(); ctx.moveTo(CX-4,gy-6); ctx.lineTo(CX+4,gy-6); ctx.stroke()
+    ctx.fillStyle=C.RED; ctx.fillRect(CX-4,gy+2,8,4)
+  }
+}
+
+function drawNfcWaves(cx,cy,phase){
+  for(let k=0;k<3;k++){
+    let p=phase+k/3; p-=Math.floor(p)
+    const r=8+p*34
+    const c=mix(C.BRASS,C.BG,p)
+    arcStroke(cx,cy,r,0,360,c,2)
+  }
+  ctx.fillStyle=C.BRASS; ctx.beginPath(); ctx.arc(cx,cy,5,0,7); ctx.fill()
+}
+
+function drawCheck(cx,cy,r,col,prog){
+  const ax=cx-r/2,ay=cy+2,bx=cx-r/6,by=cy+r/2,ex=cx+r/2,ey=cy-r/2
+  const p1=Math.min(prog*2,1), p2=Math.max(prog*2-1,0)
+  const m1x=ax+(bx-ax)*p1,m1y=ay+(by-ay)*p1
+  const m2x=bx+(ex-bx)*p2,m2y=by+(ey-by)*p2
+  ctx.strokeStyle=col; ctx.lineWidth=5; ctx.lineCap='round'
+  ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(m1x,m1y); ctx.stroke()
+  if(p2>0){ ctx.beginPath(); ctx.moveTo(bx,by); ctx.lineTo(m2x,m2y); ctx.stroke() }
+}
+function drawCross(cx,cy,r,col){
+  ctx.strokeStyle=col; ctx.lineWidth=5; ctx.lineCap='round'
+  ctx.beginPath(); ctx.moveTo(cx-r/2,cy-r/2); ctx.lineTo(cx+r/2,cy+r/2); ctx.stroke()
+  ctx.beginPath(); ctx.moveTo(cx-r/2,cy+r/2); ctx.lineTo(cx+r/2,cy-r/2); ctx.stroke()
+}
+
+// ---- Szenen ----
+function bg(){ ctx.fillStyle=C.BG; ctx.beginPath(); ctx.arc(CX,CY,120,0,7); ctx.fill() }
+
+function home(p){
+  bg()
+  const slots=p.slots, sel=p.sel, selAnim=p.selAnim!=null?p.selAnim:sel
+  drawSlotRing(slots, selAnim)
+  drawStatusGlyph(p.problem)
+  const s=slots[sel]
+  const present = s && (s.color||s.present)
+  const col = present && s.color ? s.color : C.SEG_OFF
+  let fill=0.5; if(s && s.remaining!=null) fill=Math.min(s.remaining/1000,1)
+  drawSpoolSide(CX,82,56,40,col,fill,present)
+  text(p.title || ('Slot '+(sel+1)), CX,128,C.TEXT,22,'600')
+  const name = present ? (s.name||s.material||'') : '— leer —'
+  text(name, CX,158, present?C.TEXT:C.DIM, 16,'500')
+  if(present){ let sub=s.material||''; if(s.remaining!=null) sub+='   '+s.remaining+' g'; text(sub,CX,182,C.DIM,16) }
+}
+
+function reading(p){
+  bg()
+  const frac=p.frac!=null?p.frac:0.6
+  arcFill(CX,CY,108,114,0,360,C.SEG_OFF)
+  if(frac>0) arcFill(CX,CY,108,114,270,270+360*frac,C.BRASS)
+  drawNfcWaves(CX,86,p.phase||0.3)
+  text('Spule auflegen',CX,140,C.TEXT,16,'500')
+  text(Math.ceil((p.rest!=null?p.rest:7))+' s',CX,170,C.DIM,16)
+}
+
+function result(p){
+  bg()
+  if(p.ok){
+    drawSpoolSide(CX,78,56,42,p.color||C.BRASS,(p.fill!=null?p.fill:0.7)*(p.grow!=null?p.grow:1),true)
+    const cp=p.check!=null?p.check:1
+    if(cp>0){ ctx.fillStyle=C.GREEN; ctx.beginPath(); ctx.arc(CX+20,56,15,0,7); ctx.fill(); drawCheck(CX+20,56,18,C.BG,cp) }
+    text(p.l1||'Slot 2 geladen',CX,148,C.TEXT,22,'600')
+    text(p.l2||'Creality PLA Purple',CX,178,C.DIM,16)
+  } else {
+    const dx=p.shake?Math.sin(p.shake*12)*7:0
+    ctx.fillStyle=C.RED; ctx.beginPath(); ctx.arc(CX+dx,80,34,0,7); ctx.fill()
+    drawCross(CX+dx,80,36,C.BG)
+    text(p.l1||'Drucker-Fehler',CX+dx,148,C.TEXT,22,'600')
+    text(p.l2||'nicht erreichbar',CX+dx,178,C.RED,16)
+  }
+}
+
+function pc(p){
+  bg()
+  arcStroke(CX,CY,113,0,360,C.SEG_OFF,2)
+  drawNfcWaves(CX,88,p.phase||0.3)
+  text('PC',CX,140,C.BRASS,22,'600')
+  text('Tag auflegen',CX,170,C.TEXT,16)
+}
+
+function info(){
+  bg()
+  arcStroke(CX,CY,116,0,360,C.SEG_OFF,1)
+  text('Info',CX,46,C.BRASS,22,'600')
+  text('192.168.1.60',CX,84,C.TEXT,16)
+  text('spoolstation.local',CX,110,C.DIM,16)
+  text('Signal: gut (-54 dBm)',CX,136,C.DIM,16)
+  text('Firmware v0.6.0',CX,162,C.DIM,16)
+  text('Drücken = zurück',CX,196,C.DIM,12)
+}
+
+function setup(){
+  bg()
+  arcStroke(CX,CY,116,0,360,C.SEG_OFF,1)
+  // USB-Stecker
+  ctx.fillStyle=C.BRASS; ctx.beginPath(); ctx.roundRect(CX-7,50,14,22,3); ctx.fill()
+  ctx.strokeStyle=C.BRASS; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(CX,40); ctx.lineTo(CX,50); ctx.stroke()
+  ctx.fillStyle=C.BG; ctx.beginPath(); ctx.arc(CX-3,58,2,0,7); ctx.fill(); ctx.beginPath(); ctx.arc(CX+3,58,2,0,7); ctx.fill()
+  text('Einrichtung',CX,92,C.BRASS,16,'600')
+  text('Mit PC verbinden',CX,124,C.TEXT,22,'600')
+  text('per USB',CX,150,C.DIM,16)
+  text('App öffnen und',CX,182,C.DIM,12)
+  text('Station einrichten',CX,198,C.DIM,12)
+}
+function reset(p){
+  bg()
+  arcFill(CX,CY,104,112,0,360,C.SEG_OFF)
+  const held=p.held!=null?p.held:0.4
+  if(held>0) arcFill(CX,CY,104,112,270,270+360*held,C.RED)
+  text('Werksreset?',CX,110,C.RED,22,'600')
+  text('Halten = löschen',CX,150,C.DIM,16)
+}
+const SCENES={home,reading,result,pc,info,setup,reset}
+const params=new URLSearchParams(location.hash.split('?')[1]||location.search)
+const data=JSON.parse(decodeURIComponent(params.get('data')||'{}'))
+const scene=params.get('scene')||'home';
+(SCENES[scene]||home)(data)
+if(params.get('dim')){ ctx.fillStyle='rgba(0,0,0,0.72)'; ctx.beginPath(); ctx.arc(CX,CY,120,0,7); ctx.fill() }
+window.__done=true
+</script>

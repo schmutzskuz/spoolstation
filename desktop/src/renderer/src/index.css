@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Werkstatt: ruhiges, neutrales Grau, Farbe nur aus Filamentfarben.
+   Akzent = Messing (nur Primaeraktionen + Fokus). Keine Verlaeufe/Glows. */
+:root {
+  --radius: 0.5rem; /* -> rounded-md = 6px (Eingaben/Buttons) */
+
+  /* Light */
+  --background: 210 4% 90%; /* #E4E5E6 */
+  --foreground: 214 9% 15%; /* #23262A */
+  --card: 60 3% 95%; /* #F2F2F1 */
+  --card-foreground: 214 9% 15%;
+  --primary: 41 61% 37%; /* Messing dunkler #9A7525 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 60 3% 92%;
+  --secondary-foreground: 214 9% 15%;
+  --muted: 210 4% 93%;
+  --muted-foreground: 210 5% 39%; /* #5E6368 */
+  --accent: 210 4% 86%;
+  --accent-foreground: 214 9% 15%;
+  --destructive: 6 50% 57%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 133 22% 44%;
+  --warning: 38 55% 44%;
+  --border: 210 4% 80%; /* #C9CBCD */
+  --input: 210 4% 80%;
+  --ring: 41 61% 37%;
+}
+
+:root:not([data-theme='light']) .dark,
+.dark {
+  /* Dark */
+  --background: 216 6% 16%; /* #25272A */
+  --foreground: 43 13% 89%; /* #E7E5E0 */
+  --card: 210 6% 19%; /* #2E3134 */
+  --card-foreground: 43 13% 89%;
+  --primary: 41 53% 54%; /* Messing #C8A04A */
+  --primary-foreground: 216 8% 12%;
+  --secondary: 210 6% 23%;
+  --secondary-foreground: 43 13% 89%;
+  --muted: 210 6% 22%;
+  --muted-foreground: 210 4% 62%; /* #9C9FA2 */
+  --accent: 210 6% 26%; /* #3E4246 */
+  --accent-foreground: 43 13% 89%;
+  --destructive: 6 50% 57%; /* #C8645A */
+  --destructive-foreground: 0 0% 100%;
+  --success: 133 22% 54%; /* #6FA27A */
+  --warning: 38 60% 56%; /* #D2A24C */
+  --border: 210 6% 26%; /* #3E4246 */
+  --input: 210 6% 26%;
+  --ring: 41 53% 54%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'Archivo Variable', system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Namen/Ueberschriften: schmale Breite, Gewicht 600 */
+h1,
+h2,
+h3,
+.ws-head {
+  font-weight: 600;
+  font-stretch: 80%;
+  letter-spacing: -0.005em;
+}
+
+/* Sichtbarer Tastaturfokus in Messing */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 1px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 0;
+}
+
+/* Kurzes Hervorheben eines Bereichs nach Sprung aus der Statusleiste */
+@keyframes section-highlight {
+  0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+  15% { box-shadow: 0 0 0 3px hsl(var(--primary) / 0.7); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
+}
+.section-highlight {
+  animation: section-highlight 1.8s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,0 +1,44 @@
+appId: de.spoolstation.desktop
+productName: SpoolStation
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+# Mitgelieferte Firmware (factory.bin + ota.bin + Manifest) fuer USB-Flashen und
+# OTA-Fallback. Wird beim Firmware-Build nach resources/firmware/ kopiert (post_build.py).
+extraResources:
+  - from: resources/firmware
+    to: firmware
+    filter:
+      - "**/*"
+  # Einzige Stelle fuer die Update-Quelle (owner/repo) – zur Laufzeit gelesen.
+  - from: ../update.config.json
+    to: update.config.json
+# GitHub-Releases als Update-Quelle (electron-updater). owner/repo werden in der
+# CI aus GITHUB_REPOSITORY abgeleitet; erzeugt latest.yml beim Build (auch mit
+# "--publish never"). Muss zum Repo in update.config.json passen.
+publish:
+  provider: github
+
+# --- Code-Signing (spaeter, z. B. SignPath) – aktuell deaktiviert ---
+# win:
+#   signtoolOptions:
+#     sign: ./build/sign.js   # SignPath-Integration
+#   azureSignOptions: ...
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: SpoolStation
+  multiLanguageInstaller: true
+  installerLanguages:
+    - en_US
+    - de_DE
+    - es_ES
+  include: build/installer.nsh

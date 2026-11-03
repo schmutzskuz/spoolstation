@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a problem with the app, the station or the firmware
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in the details below so it can be reproduced.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: Steps to reproduce, expected vs. actual behaviour.
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: See the bottom of the sidebar ("App v…").
+      placeholder: e.g. 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: firmware-version
+    attributes:
+      label: Firmware version
+      description: On the Station page under "Status → Firmware", or long-press the knob on the device.
+      placeholder: e.g. 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: printer-model
+    attributes:
+      label: Printer model
+      description: Which printer and firmware are you using?
+      placeholder: e.g. Snapmaker U1 with Paxx Extended Firmware
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log excerpt
+      description: |
+        Any relevant log output or error message. For the firmware you can use `pio device monitor`.
+      render: text
+    validations:
+      required: false
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: e.g. Windows 11
+    validations:
+      required: false
